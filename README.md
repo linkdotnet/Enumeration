@@ -2,7 +2,7 @@
 
 [![.NET](https://github.com/linkdotnet/Enumeration/actions/workflows/dotnet.yml/badge.svg)](https://github.com/linkdotnet/Enumeration/actions/workflows/dotnet.yml)
 [![Nuget](https://img.shields.io/nuget/dt/LinkDotNet.Enumeration)](https://www.nuget.org/packages/LinkDotNet.Enumeration/)
-[![GitHub tag](https://img.shields.io/github/v/tag/linkdotnet/BuildInformation?include_prereleases&logo=github&style=flat-square)](https://github.com/linkdotnet/BuildInformation/releases)
+[![GitHub tag](https://img.shields.io/github/v/tag/linkdotnet/Enumeration?include_prereleases&logo=github&style=flat-square)](https://github.com/linkdotnet/BuildInformation/releases)
 
 Source code generated string Enumeration with completeness!
 
