@@ -58,6 +58,7 @@ jobs:
     - name: Create release on GitHub
       uses: thomaseizinger/create-release@2.0.0
       env:
+        GITHUB_TOKEN: ${{ secrets.SBPAT }}
       with:
         tag_name: v${{ github.event.inputs.versionIncrement }}
         target_commitish: ${{ env.RELEASE_COMMIT_HASH }}
@@ -65,7 +66,6 @@ jobs:
         body: ${{ steps.changelog.outputs.changes }}
         draft: false
         prerelease: ${{ github.event.inputs.prerelease }}
-        GITHUB_TOKEN: ${{ secrets.SBPAT }}
 
     - name: Create release package
       run: |
