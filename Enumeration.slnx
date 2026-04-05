@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/.text/">
+    <File Path="CHANGELOG.md" />
     <File Path="LICENSE" />
     <File Path="README.md" />
   </Folder>

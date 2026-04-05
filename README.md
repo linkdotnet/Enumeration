@@ -51,3 +51,7 @@ var colorCode = color.Match(
     blue => "#0000FF"
 );
 ```
+
+### Limitations
+
+* Your code should run at least `net8.0` or later, as the library uses things like `FrozenSet`.
