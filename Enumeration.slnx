@@ -3,6 +3,11 @@
     <File Path="LICENSE" />
     <File Path="README.md" />
   </Folder>
+  <Folder Name="/.workflows/">
+    <File Path=".github\workflows\codeql.yml" />
+    <File Path=".github\workflows\create-release.yml" />
+    <File Path=".github\workflows\dotnet.yml" />
+  </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/LinkDotNet.Enumeration.Samples/LinkDotNet.Enumeration.Samples.csproj" />
   </Folder>
