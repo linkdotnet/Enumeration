@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/.text/">
+    <File Path="LICENSE" />
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/LinkDotNet.Enumeration.Samples/LinkDotNet.Enumeration.Samples.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/LinkDotNet.Enumeration/LinkDotNet.Enumeration.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LinkDotNet.Enumeration.Tests/LinkDotNet.Enumeration.Tests.csproj" />
+  </Folder>
+</Solution>
