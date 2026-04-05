@@ -241,7 +241,29 @@ public sealed class EnumerationGeneratorTests
         diagnostics.ShouldBeEmpty();
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
+    [Fact]
+    public void GeneratesPascalCaseMemberNamesForAllCapsValues()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("OK", "DANGER")]
+            public sealed partial record Status;
+            """;
+
+        var text = GetGeneratedText(source, "Status");
+
+        text.Contains("public static readonly Status Ok = new(\"OK\");").ShouldBeTrue(text);
+        text.Contains("public static readonly Status Danger = new(\"DANGER\");").ShouldBeTrue(text);
+
+        text.Contains("\"OK\" => Ok,").ShouldBeTrue(text);
+        text.Contains("\"DANGER\" => Danger,").ShouldBeTrue(text);
+
+        text.Contains("new Status[] { Ok, Danger }").ShouldBeTrue(text);
+
+        text.Contains("Func<T> onOk").ShouldBeTrue(text);
+        text.Contains("Func<T> onDanger").ShouldBeTrue(text);
+    }
 
     private static string GetGeneratedText(string source, string typeName)
     {
