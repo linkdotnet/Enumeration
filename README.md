@@ -6,7 +6,7 @@
 
 Source code generated string Enumeration with completeness!
 
-## What is in the box?
+## What is in the box?
 
 This source code generator let's you easily create string based enumerations with a lot of features.
 

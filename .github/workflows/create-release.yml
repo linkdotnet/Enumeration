@@ -69,7 +69,7 @@ jobs:
 
     - name: Create release package
       run: |
-        dotnet pack -c RELEASE -p:PackageVersion=${{ github.event.inputs.versionIncrement }} --property:PackageOutputPath=${GITHUB_WORKSPACE}/packages /p:ContinuousIntegrationBuild=true --nologo --include-symbols -p:SymbolPackageFormat=snupkg
+        dotnet pack src/LinkDotNet.Enumeration/LinkDotNet.Enumeration.csproj -c RELEASE -p:PackageVersion=${{ github.event.inputs.versionIncrement }} --property:PackageOutputPath=${GITHUB_WORKSPACE}/packages /p:ContinuousIntegrationBuild=true --nologo --include-symbols -p:SymbolPackageFormat=snupkg
 
     - name: Upload to nuget
       run: |

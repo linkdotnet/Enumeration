@@ -15,10 +15,11 @@
         <Description>Source code generated enumeration with completeness!</Description>
         <PackageProjectUrl>https://github.com/linkdotnet/Enumeration</PackageProjectUrl>
         <RepositoryUrl>https://github.com/linkdotnet/Enumeration</RepositoryUrl>
-        <PackageTags>csharp,dotnet,msbuild,roslyn,enumeration,unon</PackageTags>
+        <PackageTags>csharp,dotnet,msbuild,roslyn,enumeration,union</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <PackageIcon>logo.png</PackageIcon>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
     </PropertyGroup>
 
     <ItemGroup>
