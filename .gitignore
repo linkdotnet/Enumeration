@@ -53,5 +53,8 @@ CodeCoverage/
 TestResult.xml
 nunit-*.xml
 
-# MacOs
+# MacOS
 .DS_Store
+
+# Rider
+.idea/
