@@ -29,7 +29,7 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
         }
 
         /// <summary>
-        /// Marks a <c>partial record</c> as a source-generated enumeration.
+        /// Marks a <c>partial class</c> or <c>partial record</c> as a source-generated enumeration.
         /// The generator emits: Key property, private constructor, static readonly fields,
         /// All, Create, TryCreate, == / != operators, ToString, Match&lt;T&gt; and Match(Action).
         /// </summary>
@@ -51,7 +51,7 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
         var models = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 FullAttributeName,
-                predicate: static (node, _) => node is RecordDeclarationSyntax,
+                predicate: static (node, _) => node is RecordDeclarationSyntax or ClassDeclarationSyntax,
                 transform: static (ctx, _) => GetModel(ctx))
             .Where(static m => m is not null);
 
@@ -105,7 +105,9 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
             ? null
             : type.ContainingNamespace.ToDisplayString();
 
-        return new EnumerationModel(ns, type.Name, entries);
+        var isRecord = ctx.TargetNode is RecordDeclarationSyntax;
+
+        return new EnumerationModel(ns, type.Name, entries, isRecord);
     }
 
     /// <summary>
@@ -166,7 +168,8 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
             sb.AppendLine();
         }
 
-        sb.AppendLine($"public sealed partial record {typeName}");
+        var typeKind = model.IsRecord ? "record" : "class";
+        sb.AppendLine($"public sealed partial {typeKind} {typeName}");
         sb.AppendLine("{");
 
         sb.AppendLine("    /// <summary>Gets the string key that identifies this enumeration value.</summary>");
@@ -288,16 +291,18 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
 
 internal sealed class EnumerationModel
 {
-    public EnumerationModel(string? ns, string typeName, ImmutableArray<EnumerationEntry> entries)
+    public EnumerationModel(string? ns, string typeName, ImmutableArray<EnumerationEntry> entries, bool isRecord)
     {
         Namespace = ns;
         TypeName = typeName;
         Entries = entries;
+        IsRecord = isRecord;
     }
 
     public string? Namespace { get; }
     public string TypeName { get; }
     public ImmutableArray<EnumerationEntry> Entries { get; }
+    public bool IsRecord { get; }
 }
 
 internal readonly record struct EnumerationEntry(string Key, string MemberName);

@@ -383,6 +383,22 @@ public sealed class EnumerationGeneratorTests
         text.ShouldContain("public EnumerationAttribute(Casing casing, params string[] values)");
     }
 
+    [Fact]
+    public void GeneratesClassInsteadOfRecord()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("A", "B")]
+            public sealed partial class MyClass;
+            """;
+
+        var text = GetGeneratedText(source, "MyClass");
+
+        text.ShouldContain("public sealed partial class MyClass");
+        text.ShouldNotContain("public sealed partial record MyClass");
+    }
+
     private static string GetGeneratedText(string source, string typeName)
     {
         var result = RunGenerator(source);

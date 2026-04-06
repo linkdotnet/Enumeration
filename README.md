@@ -98,4 +98,3 @@ Calling `All` will return a collection of all possible values. This is implement
 ### Limitations
 
 * Your code should run at least `net8.0` or later, as the library uses things like `FrozenSet`.
-* The `partial` object should be a `record`

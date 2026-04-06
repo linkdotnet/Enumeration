@@ -6,6 +6,10 @@ All notable changes to **Enumeration** will be documented in this file. The proj
 
 ## [Unreleased]
 
+### Added
+
+- Support for `partial class` declarations in addition to `partial record`.
+
 ## [1.1.0] - 2026-04-06
 
 ### Added
