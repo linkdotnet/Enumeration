@@ -6,6 +6,8 @@ All notable changes to **Enumeration** will be documented in this file. The proj
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-04-06
+
 ### Added
 
 - `Match<T>` overload that accepts `T` values directly instead of `Func<T>` to avoid allocations.
@@ -42,7 +44,8 @@ All notable changes to **Enumeration** will be documented in this file. The proj
 
 - Initial release of `Enumeration` source code generator.
 
-[unreleased]: https://github.com/linkdotnet/Enumeration/compare/1.2.0...HEAD
+[unreleased]: https://github.com/linkdotnet/Enumeration/compare/1.3.0...HEAD
+[1.3.0]: https://github.com/linkdotnet/Enumeration/compare/1.2.0...1.3.0
 [1.2.0]: https://github.com/linkdotnet/Enumeration/compare/1.1.0...1.2.0
 [1.1.0]: https://github.com/linkdotnet/Enumeration/compare/1.0.1...1.1.0
 [1.0.1]: https://github.com/linkdotnet/Enumeration/compare/1.0.0...1.0.1
