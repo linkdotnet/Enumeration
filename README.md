@@ -12,7 +12,7 @@ This source code generator let's you easily create string based enumerations wit
 
 ```csharp
 [Enumeration("Red", "Green", "Blue")]
-public sealed partial class Color;
+public sealed partial record Color;
 ```
 
 That's all you need to do to create a string based enumeration. You can either use it like this:
@@ -98,3 +98,4 @@ Calling `All` will return a collection of all possible values. This is implement
 ### Limitations
 
 * Your code should run at least `net8.0` or later, as the library uses things like `FrozenSet`.
+* The `partial` object should be a `record`
