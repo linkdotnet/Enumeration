@@ -289,21 +289,11 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
     }
 }
 
-internal sealed class EnumerationModel
-{
-    public EnumerationModel(string? ns, string typeName, ImmutableArray<EnumerationEntry> entries, bool isRecord)
-    {
-        Namespace = ns;
-        TypeName = typeName;
-        Entries = entries;
-        IsRecord = isRecord;
-    }
-
-    public string? Namespace { get; }
-    public string TypeName { get; }
-    public ImmutableArray<EnumerationEntry> Entries { get; }
-    public bool IsRecord { get; }
-}
+internal sealed record EnumerationModel(
+    string? Namespace,
+    string TypeName,
+    ImmutableArray<EnumerationEntry> Entries,
+    bool IsRecord);
 
 internal readonly record struct EnumerationEntry(string Key, string MemberName);
 
