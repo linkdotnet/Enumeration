@@ -141,6 +141,23 @@ public sealed class EnumerationGeneratorTests
     }
 
     [Fact]
+    public void GeneratesMatchWithValueDirectly()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("SqlServer", "Sqlite")]
+            public sealed partial record Provider;
+            """;
+
+        var text = GetGeneratedText(source, "Provider");
+
+        text.ShouldContain("public T Match<T>(T onSqlServer, T onSqlite)");
+        text.ShouldContain("if (Key == SqlServer.Key) return onSqlServer;");
+        text.ShouldContain("if (Key == Sqlite.Key) return onSqlite;");
+    }
+
+    [Fact]
     public void GeneratesMatchWithReturnValue()
     {
         var source = """

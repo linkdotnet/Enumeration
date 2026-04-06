@@ -6,6 +6,10 @@ All notable changes to **Enumeration** will be documented in this file. The proj
 
 ## [Unreleased]
 
+### Added
+
+- `Match<T>` overload that accepts `T` values directly instead of `Func<T>` to avoid allocations.
+
 ## [1.2.0] - 2026-04-06
 
 ### Added

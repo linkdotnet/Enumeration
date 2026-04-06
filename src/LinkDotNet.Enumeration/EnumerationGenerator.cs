@@ -318,6 +318,26 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
         sb.AppendLine("    public override string ToString() => Key;");
         sb.AppendLine();
 
+        var valueParams = string.Join(", ", model.Entries.Select(static e => $"T on{e.MemberName}"));
+        sb.AppendLine("    /// <summary>Returns the value corresponding to the current enumeration value.</summary>");
+        foreach (var entry in model.Entries)
+        {
+            sb.AppendLine($"    /// <param name=\"on{entry.MemberName}\">Returned when the current value is <see cref=\"{entry.MemberName}\"/>.</param>");
+        }
+        sb.AppendLine("    /// <typeparam name=\"T\">The return type.</typeparam>");
+        sb.AppendLine("    /// <returns>The matched value.</returns>");
+        sb.AppendLine("    /// <exception cref=\"InvalidOperationException\">Thrown when no case matches.</exception>");
+        sb.AppendLine($"    public T Match<T>({valueParams})");
+        sb.AppendLine("    {");
+        foreach (var entry in model.Entries)
+        {
+            sb.AppendLine($"        if (Key == {entry.MemberName}.Key) return on{entry.MemberName};");
+        }
+
+        sb.AppendLine("        throw new InvalidOperationException($\"Unhandled enumeration value: {Key}\");");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+
         var funcParams = string.Join(", ", model.Entries.Select(static e => $"Func<T> on{e.MemberName}"));
         sb.AppendLine("    /// <summary>Invokes the function corresponding to the current value and returns its result.</summary>");
         foreach (var entry in model.Entries)
