@@ -399,6 +399,149 @@ public sealed class EnumerationGeneratorTests
         text.ShouldNotContain("public sealed partial record MyClass");
     }
 
+    [Fact]
+    public void GeneratesIParsableImplementations()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("A", "B")]
+            public sealed partial record MyEnum;
+            """;
+
+        var text = GetGeneratedText(source, "MyEnum");
+
+        text.ShouldContain("public sealed partial record MyEnum : IParsable<MyEnum>, ISpanParsable<MyEnum>");
+        text.ShouldContain("public static MyEnum Parse(string s, IFormatProvider? provider) => Create(s);");
+        text.ShouldContain("public static bool TryParse(string? s, IFormatProvider? provider, [NotNullWhen(true)] out MyEnum? result) => TryCreate(s, out result);");
+        text.ShouldContain("public static MyEnum Parse(ReadOnlySpan<char> s, IFormatProvider? provider) => Create(s.ToString());");
+    }
+
+    [Fact]
+    public void GeneratesImplicitAndExplicitConversions()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("A", "B")]
+            public sealed partial record MyEnum;
+            """;
+
+        var text = GetGeneratedText(source, "MyEnum");
+
+        text.ShouldContain("public static implicit operator string(MyEnum value) => value.Key;");
+        text.ShouldContain("public static explicit operator MyEnum(string key) => Create(key);");
+    }
+
+    [Fact]
+    public void GeneratesIEquatableForClasses()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("A", "B")]
+            public sealed partial class MyClass;
+            """;
+
+        var text = GetGeneratedText(source, "MyClass");
+
+        text.ShouldContain("public sealed partial class MyClass : IParsable<MyClass>, ISpanParsable<MyClass>, IEquatable<MyClass>");
+        text.ShouldContain("public bool Equals(MyClass? other) => other is not null && Key.Equals(other.Key, StringComparison.Ordinal);");
+        text.ShouldContain("public override bool Equals(object? obj) => obj is MyClass other && Equals(other);");
+        text.ShouldContain("public override int GetHashCode() => Key.GetHashCode();");
+    }
+
+    [Fact]
+    public void DoesNotGenerateIEquatableForRecords()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("A", "B")]
+            public sealed partial record MyRecord;
+            """;
+
+        var text = GetGeneratedText(source, "MyRecord");
+
+        text.ShouldContain("public sealed partial record MyRecord : IParsable<MyRecord>, ISpanParsable<MyRecord>");
+        text.ShouldNotContain("IEquatable<MyRecord>");
+        text.ShouldNotContain("public bool Equals(MyRecord? other)");
+    }
+
+    [Fact]
+    public void RespectsInternalAccessibility()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("A", "B")]
+            internal sealed partial record MyInternalEnum;
+            """;
+
+        var text = GetGeneratedText(source, "MyInternalEnum");
+
+        text.ShouldContain("internal sealed partial record MyInternalEnum");
+        text.ShouldNotContain("public sealed partial record MyInternalEnum");
+    }
+
+    [Fact]
+    public void HandlesNestedTypes()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            namespace MyNamespace;
+
+            public partial class Outer
+            {
+                [Enumeration("Value")]
+                internal sealed partial class Inner;
+            }
+            """;
+
+        var text = GetGeneratedText(source, "Inner");
+
+        text.ShouldContain("namespace MyNamespace;");
+        text.ShouldContain("partial class Outer");
+        text.ShouldContain("internal sealed partial class Inner");
+    }
+
+    [Fact]
+    public void RespectsProtectedInternalAccessibility()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            public partial class Outer
+            {
+                [Enumeration("A", "B")]
+                protected internal sealed partial record MyEnum;
+            }
+            """;
+
+        var text = GetGeneratedText(source, "MyEnum");
+
+        text.ShouldContain("protected internal sealed partial record MyEnum");
+    }
+
+    [Fact]
+    public void RespectsPrivateProtectedAccessibility()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            public partial class Outer
+            {
+                [Enumeration("A", "B")]
+                private protected sealed partial record MyEnum;
+            }
+            """;
+
+        var text = GetGeneratedText(source, "MyEnum");
+
+        text.ShouldContain("private protected sealed partial record MyEnum");
+    }
+
     private static string GetGeneratedText(string source, string typeName)
     {
         var result = RunGenerator(source);

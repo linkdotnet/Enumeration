@@ -91,6 +91,35 @@ else
 }
 ```
 
+### Parsing (IParsable)
+
+The generated types implement `IParsable<T>` and `ISpanParsable<T>`, making them compatible with modern .NET features like Minimal APIs and Model Binding.
+
+```csharp
+if (Color.TryParse("Red", null, out var color))
+{
+    // Use color
+}
+```
+
+### Implicit/Explicit Conversions
+
+Instances of the generated enumeration can be implicitly converted to strings (returns the `Key` property), and strings can be explicitly converted back to the enumeration type (calls `Create`).
+
+```csharp
+string colorKey = Color.Red; // Implicit conversion
+var color = (Color)"Green"; // Explicit conversion
+```
+
+### Equality and Comparison
+
+Records implement value-based equality by default. For classes, `IEquatable<T>` is automatically implemented, comparing the `Key` property.
+
+```csharp
+var isRed = Color.Red == "Red"; // String comparison
+var areEqual = Color.Red.Equals(Color.Create("Red")); // Value equality
+```
+
 ### Getting all values
 
 Calling `All` will return a collection of all possible values. This is implemented using a `FrozenSet` to ensure immutability and thread-safety.

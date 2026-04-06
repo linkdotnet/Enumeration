@@ -106,8 +106,33 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
             : type.ContainingNamespace.ToDisplayString();
 
         var isRecord = ctx.TargetNode is RecordDeclarationSyntax;
+        var accessibility = type.DeclaredAccessibility switch
+        {
+            Accessibility.Public => "public",
+            Accessibility.Internal => "internal",
+            Accessibility.ProtectedOrInternal => "protected internal",
+            Accessibility.ProtectedAndInternal => "private protected",
+            _ => "public"
+        };
 
-        return new EnumerationModel(ns, type.Name, entries, isRecord);
+        var parentTypes = ImmutableArray.CreateBuilder<ParentType>();
+        var parent = type.ContainingType;
+        while (parent is not null)
+        {
+            var kind = parent.IsRecord ? "record" : "class";
+            var parentAccessibility = parent.DeclaredAccessibility switch
+            {
+                Accessibility.Public => "public",
+                Accessibility.Internal => "internal",
+                Accessibility.ProtectedOrInternal => "protected internal",
+                Accessibility.ProtectedAndInternal => "private protected",
+                _ => "public"
+            };
+            parentTypes.Insert(0, new ParentType(parent.Name, kind, parentAccessibility));
+            parent = parent.ContainingType;
+        }
+
+        return new EnumerationModel(ns, type.Name, entries, isRecord, accessibility, parentTypes.ToImmutable());
     }
 
     /// <summary>
@@ -168,8 +193,22 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
             sb.AppendLine();
         }
 
+        foreach (var parent in model.ParentTypes)
+        {
+            sb.AppendLine($"{parent.Accessibility} partial {parent.Kind} {parent.Name}");
+            sb.AppendLine("{");
+        }
+
         var typeKind = model.IsRecord ? "record" : "class";
-        sb.AppendLine($"public sealed partial {typeKind} {typeName}");
+        var interfaceImplementations = new List<string> { $"IParsable<{typeName}>", $"ISpanParsable<{typeName}>" };
+        if (!model.IsRecord)
+        {
+            interfaceImplementations.Add($"IEquatable<{typeName}>");
+        }
+
+        var interfaces = string.Join(", ", interfaceImplementations);
+
+        sb.AppendLine($"{model.Accessibility} sealed partial {typeKind} {typeName} : {interfaces}");
         sb.AppendLine("{");
 
         sb.AppendLine("    /// <summary>Gets the string key that identifies this enumeration value.</summary>");
@@ -233,12 +272,45 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
         sb.AppendLine("    }");
         sb.AppendLine();
 
+        sb.AppendLine("    /// <inheritdoc />");
+        sb.AppendLine($"    public static {typeName} Parse(string s, IFormatProvider? provider) => Create(s);");
+        sb.AppendLine();
+        sb.AppendLine("    /// <inheritdoc />");
+        sb.AppendLine($"    public static bool TryParse(string? s, IFormatProvider? provider, [NotNullWhen(true)] out {typeName}? result) => TryCreate(s, out result);");
+        sb.AppendLine();
+        sb.AppendLine("    /// <inheritdoc />");
+        sb.AppendLine($"    public static {typeName} Parse(ReadOnlySpan<char> s, IFormatProvider? provider) => Create(s.ToString());");
+        sb.AppendLine();
+        sb.AppendLine("    /// <inheritdoc />");
+        sb.AppendLine($"    public static bool TryParse(ReadOnlySpan<char> s, IFormatProvider? provider, [NotNullWhen(true)] out {typeName}? result) => TryCreate(s.ToString(), out result);");
+        sb.AppendLine();
+
+        if (!model.IsRecord)
+        {
+            sb.AppendLine("    /// <inheritdoc />");
+            sb.AppendLine($"    public bool Equals({typeName}? other) => other is not null && Key.Equals(other.Key, StringComparison.Ordinal);");
+            sb.AppendLine();
+            sb.AppendLine("    /// <inheritdoc />");
+            sb.AppendLine($"    public override bool Equals(object? obj) => obj is {typeName} other && Equals(other);");
+            sb.AppendLine();
+            sb.AppendLine("    /// <inheritdoc />");
+            sb.AppendLine("    public override int GetHashCode() => Key.GetHashCode();");
+            sb.AppendLine();
+        }
+
         sb.AppendLine($"    /// <summary>Returns <see langword=\"true\"/> when <paramref name=\"a\"/>'s key equals <paramref name=\"b\"/> using ordinal string comparison.</summary>");
         sb.AppendLine($"    public static bool operator ==({typeName}? a, string? b)");
         sb.AppendLine("        => a is not null && b is not null && a.Key.Equals(b, StringComparison.Ordinal);");
         sb.AppendLine();
         sb.AppendLine($"    /// <summary>Returns <see langword=\"true\"/> when <paramref name=\"a\"/>'s key does not equal <paramref name=\"b\"/>.</summary>");
         sb.AppendLine($"    public static bool operator !=({typeName}? a, string? b) => !(a == b);");
+        sb.AppendLine();
+
+        sb.AppendLine($"    /// <summary>Implicitly converts the <see cref=\"{typeName}\"/> instance to its <see cref=\"Key\"/>.</summary>");
+        sb.AppendLine($"    public static implicit operator string({typeName} value) => value.Key;");
+        sb.AppendLine();
+        sb.AppendLine($"    /// <summary>Explicitly converts the <see cref=\"string\"/> to a <see cref=\"{typeName}\"/> instance.</summary>");
+        sb.AppendLine($"    public static explicit operator {typeName}(string key) => Create(key);");
         sb.AppendLine();
 
         sb.AppendLine("    /// <summary>Returns the key of this enumeration value.</summary>");
@@ -282,8 +354,12 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
 
         sb.AppendLine("        throw new InvalidOperationException($\"Unhandled enumeration value: {Key}\");");
         sb.AppendLine("    }");
-
         sb.AppendLine("}");
+
+        foreach (var _ in model.ParentTypes)
+        {
+            sb.AppendLine("}");
+        }
 
         ctx.AddSource($"{typeName}.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));
     }
@@ -293,7 +369,11 @@ internal sealed record EnumerationModel(
     string? Namespace,
     string TypeName,
     ImmutableArray<EnumerationEntry> Entries,
-    bool IsRecord);
+    bool IsRecord,
+    string Accessibility,
+    ImmutableArray<ParentType> ParentTypes);
+
+internal sealed record ParentType(string Name, string Kind, string Accessibility);
 
 internal readonly record struct EnumerationEntry(string Key, string MemberName);
 

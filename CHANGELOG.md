@@ -9,6 +9,13 @@ All notable changes to **Enumeration** will be documented in this file. The proj
 ### Added
 
 - Support for `partial class` declarations in addition to `partial record`.
+- Added `IParsable`, `ISpanParsable`
+- Added `IEquatable` if it isn't a `record` type.
+
+### Fixed
+
+- Accessibility modifiers where not promoted
+- Inner class enumerations were not supported
 
 ## [1.1.0] - 2026-04-06
 
