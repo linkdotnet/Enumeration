@@ -6,6 +6,11 @@ All notable changes to **Enumeration** will be documented in this file. The proj
 
 ## [Unreleased]
 
+### Added
+
+- `TryCreate(string? key, out {TypeName}? value)` factory method returning `bool` with `[NotNullWhen(true)]` on the out parameter for null-safe pattern matching.
+- `Casing` enum (`PascalCase` | `Preserve`) accepted as an optional first argument to `[Enumeration]` to control how static member names are derived from the string values.
+
 ## [1.0.1] - 2026-04-05
 
 ### Fixed

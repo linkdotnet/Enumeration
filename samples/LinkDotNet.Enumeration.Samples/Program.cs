@@ -6,7 +6,7 @@ foreach (var db in all)
 {
     Console.WriteLine($"- {db.Key}");
 }   
-var r = DatabaseType.Sqlite;
+var r = DatabaseType.Create("Sqlite");
 
 r.Match(
     onSqlServer: () => Console.WriteLine("SQL Server selected"),

@@ -52,6 +52,49 @@ var colorCode = color.Match(
 );
 ```
 
+### Controlling field names
+
+The `Enumeration` attribute accepts an optional first argument of type `Casing` to control how the static member names are derived from the string values. By default, the library uses `PascalCase` to convert string values into member names. If you want to preserve the original casing of the string values, you can set the `Casing` to `Preserve`.
+
+```csharp
+[Enumeration(Casing.Preserve, "red", "green", "blue")]
+public sealed partial class Color;
+```
+
+Generates:
+
+```csharp
+public sealed partial class Color
+{
+    public static readonly Color red = new("red");
+    public static readonly Color green = new("green");
+    public static readonly Color blue = new("blue");
+    // ...
+```
+
+The default is `PascalCase` to feel "natural" to C# developers.
+
+### Creating from a string key
+
+Two methods are exposed `Create` and `TryCreate` to create an instance of the enumeration from a string key. The `Create` method will throw an `ArgumentException` if the key is not valid, while the `TryCreate` method will return a boolean indicating whether the creation was successful and output the created value through an out parameter.
+
+```csharp
+var color = Color.Create("Red"); // Throws if "Red" is not a valid key
+
+if (Color.TryCreate("Red", out var color))
+{
+    // Use color
+}
+else
+{
+    // Handle invalid key
+}
+```
+
+### Getting all values
+
+Calling `All` will return a collection of all possible values. This is implemented using a `FrozenSet` to ensure immutability and thread-safety.
+
 ### Limitations
 
 * Your code should run at least `net8.0` or later, as the library uses things like `FrozenSet`.

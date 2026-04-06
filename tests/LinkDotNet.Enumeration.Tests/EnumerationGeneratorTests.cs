@@ -15,7 +15,7 @@ public sealed class EnumerationGeneratorTests
         var attributeFile = result.GeneratedTrees.SingleOrDefault(t => t.FilePath.EndsWith("EnumerationAttribute.g.cs"));
         attributeFile.ShouldNotBeNull();
 
-        var text = attributeFile.GetText(Xunit.TestContext.Current.CancellationToken).ToString();
+        var text = attributeFile.GetText(TestContext.Current.CancellationToken).ToString();
         text.ShouldContain("internal sealed class EnumerationAttribute");
         text.ShouldContain("params string[] values");
     }
@@ -263,6 +263,124 @@ public sealed class EnumerationGeneratorTests
 
         text.Contains("Func<T> onOk").ShouldBeTrue(text);
         text.Contains("Func<T> onDanger").ShouldBeTrue(text);
+    }
+
+    [Fact]
+    public void GeneratesTryCreateMethod()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("A", "B")]
+            public sealed partial record Foo;
+            """;
+
+        var text = GetGeneratedText(source, "Foo");
+
+        text.ShouldContain("using System.Diagnostics.CodeAnalysis;");
+        text.ShouldContain("public static bool TryCreate(string? key, [NotNullWhen(true)] out Foo? value)");
+        text.ShouldContain("\"A\" => A,");
+        text.ShouldContain("\"B\" => B,");
+        text.ShouldContain("_ => null");
+        text.ShouldContain("return value is not null;");
+    }
+
+    [Fact]
+    public void GeneratesTryCreateXmlDocs()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("One", "Two")]
+            public sealed partial record Documented;
+            """;
+
+        var text = GetGeneratedText(source, "Documented");
+
+        text.ShouldContain("/// <summary>Tries to create the <see cref=\"Documented\"/> instance matching <paramref name=\"key\"/>.</summary>");
+        text.ShouldContain("/// <param name=\"value\">When this method returns <see langword=\"true\"/>, contains the matching <see cref=\"Documented\"/> instance; otherwise <see langword=\"null\"/>.</param>");
+        text.ShouldContain("/// <returns><see langword=\"true\"/> if a matching instance was found; otherwise <see langword=\"false\"/>.</returns>");
+    }
+
+    [Fact]
+    public void GeneratedTryCreateCompilesWithoutErrors()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("Alpha", "Beta")]
+            public sealed partial record Color;
+            """;
+
+        var generatorResult = RunGenerator(source);
+        var allTrees = generatorResult.GeneratedTrees.Append(
+            CSharpSyntaxTree.ParseText(source, cancellationToken: TestContext.Current.CancellationToken)).ToArray();
+
+        var references = AppDomain.CurrentDomain.GetAssemblies()
+            .Where(static a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
+            .Select(static a => MetadataReference.CreateFromFile(a.Location))
+            .ToArray();
+
+        var fullCompilation = CSharpCompilation.Create(
+            "FullTestAssembly",
+            allTrees,
+            references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var errors = fullCompilation.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToImmutableArray();
+
+        errors.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void GeneratesPreservedMemberNamesWhenCasingIsPreserve()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration(Casing.Preserve, "OK", "in_progress", "DANGER")]
+            public sealed partial record Status;
+            """;
+
+        var text = GetGeneratedText(source, "Status");
+
+        text.Contains("public static readonly Status OK = new(\"OK\");").ShouldBeTrue(text);
+        text.Contains("public static readonly Status in_progress = new(\"in_progress\");").ShouldBeTrue(text);
+        text.Contains("public static readonly Status DANGER = new(\"DANGER\");").ShouldBeTrue(text);
+    }
+
+    [Fact]
+    public void DefaultCasingIsPascalCase()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("OK", "in_progress")]
+            public sealed partial record Status;
+            """;
+
+        var text = GetGeneratedText(source, "Status");
+
+        text.Contains("public static readonly Status Ok = new(\"OK\");").ShouldBeTrue(text);
+        text.Contains("public static readonly Status InProgress = new(\"in_progress\");").ShouldBeTrue(text);
+    }
+
+    [Fact]
+    public void EmitsCasingEnumInAttributeSource()
+    {
+        var result = RunGenerator(string.Empty);
+
+        var attributeFile = result.GeneratedTrees.SingleOrDefault(t => t.FilePath.EndsWith("EnumerationAttribute.g.cs"));
+        attributeFile.ShouldNotBeNull();
+
+        var text = attributeFile.GetText(TestContext.Current.CancellationToken).ToString();
+        text.ShouldContain("internal enum Casing");
+        text.ShouldContain("PascalCase,");
+        text.ShouldContain("Preserve");
+        text.ShouldContain("public Casing MemberCasing { get; }");
+        text.ShouldContain("public EnumerationAttribute(Casing casing, params string[] values)");
     }
 
     private static string GetGeneratedText(string source, string typeName)

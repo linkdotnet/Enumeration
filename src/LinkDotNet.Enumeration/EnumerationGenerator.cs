@@ -19,16 +19,27 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
 
         namespace LinkDotNet.Enumeration;
 
+        /// <summary>Specifies how static member names are derived from the string values.</summary>
+        internal enum Casing
+        {
+            /// <summary>Converts each value to PascalCase (default).</summary>
+            PascalCase,
+            /// <summary>Uses the raw string value as the member name.</summary>
+            Preserve
+        }
+
         /// <summary>
-        /// Marks a <c>sealed partial record</c> as a source-generated enumeration.
+        /// Marks a <c>partial record</c> as a source-generated enumeration.
         /// The generator emits: Key property, private constructor, static readonly fields,
-        /// All, Create, == / != operators, ToString, Match&lt;T&gt; and Match(Action).
+        /// All, Create, TryCreate, == / != operators, ToString, Match&lt;T&gt; and Match(Action).
         /// </summary>
         [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
         internal sealed class EnumerationAttribute : Attribute
         {
             public string[] Values { get; }
-            public EnumerationAttribute(params string[] values) => Values = values;
+            public Casing MemberCasing { get; }
+            public EnumerationAttribute(params string[] values) => (Values, MemberCasing) = (values, Casing.PascalCase);
+            public EnumerationAttribute(Casing casing, params string[] values) => (Values, MemberCasing) = (values, casing);
         }
         """;
 
@@ -60,8 +71,20 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
             return null;
         }
 
-        var arg = attr.ConstructorArguments[0];
-        var rawValues = arg.Kind == TypedConstantKind.Array ? arg.Values : [arg];
+        ImmutableArray<TypedConstant> rawValues;
+        var isPreserve = false;
+
+        if (attr.ConstructorArguments[0].Kind == TypedConstantKind.Enum)
+        {
+            isPreserve = attr.ConstructorArguments[0].Value is 1;
+            var valuesArg = attr.ConstructorArguments[1];
+            rawValues = valuesArg.Kind == TypedConstantKind.Array ? valuesArg.Values : [valuesArg];
+        }
+        else
+        {
+            var arg = attr.ConstructorArguments[0];
+            rawValues = arg.Kind == TypedConstantKind.Array ? arg.Values : [arg];
+        }
 
         var values = rawValues
             .Select(static v => v.Value as string)
@@ -75,7 +98,7 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
         }
 
         var entries = values
-            .Select(static v => new EnumerationEntry(v, ToPascalCase(v)))
+            .Select(v => new EnumerationEntry(v, isPreserve ? v : ToPascalCase(v)))
             .ToImmutableArray();
 
         var ns = type.ContainingNamespace.IsGlobalNamespace
@@ -125,7 +148,7 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
 
     private static void Emit(SourceProductionContext ctx, EnumerationModel model)
     {
-        var sb = new StringBuilder();
+        var sb = new StringBuilder(4000);
         var typeName = model.TypeName;
         var allFieldNames = string.Join(", ", model.Entries.Select(static e => e.MemberName));
 
@@ -134,6 +157,7 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
         sb.AppendLine();
         sb.AppendLine("using System;");
         sb.AppendLine("using System.Collections.Frozen;");
+        sb.AppendLine("using System.Diagnostics.CodeAnalysis;");
         sb.AppendLine();
 
         if (model.Namespace is not null)
@@ -185,6 +209,24 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
         }
         sb.AppendLine($"            _ => throw new InvalidOperationException($\"{{key}} is not a valid value for {typeName}\")");
         sb.AppendLine("        };");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+
+        sb.AppendLine($"    /// <summary>Tries to create the <see cref=\"{typeName}\"/> instance matching <paramref name=\"key\"/>.</summary>");
+        sb.AppendLine("    /// <param name=\"key\">The key to look up.</param>");
+        sb.AppendLine($"    /// <param name=\"value\">When this method returns <see langword=\"true\"/>, contains the matching <see cref=\"{typeName}\"/> instance; otherwise <see langword=\"null\"/>.</param>");
+        sb.AppendLine("    /// <returns><see langword=\"true\"/> if a matching instance was found; otherwise <see langword=\"false\"/>.</returns>");
+        sb.AppendLine($"    public static bool TryCreate(string? key, [NotNullWhen(true)] out {typeName}? value)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        value = key switch");
+        sb.AppendLine("        {");
+        foreach (var entry in model.Entries)
+        {
+            sb.AppendLine($"            \"{entry.Key}\" => {entry.MemberName},");
+        }
+        sb.AppendLine("            _ => null");
+        sb.AppendLine("        };");
+        sb.AppendLine("        return value is not null;");
         sb.AppendLine("    }");
         sb.AppendLine();
 
