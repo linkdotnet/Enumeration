@@ -38,6 +38,13 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
         {
             public string[] Values { get; }
             public Casing MemberCasing { get; }
+            /// <summary>
+            /// When <see langword="true"/>, a <see cref="System.Text.Json.Serialization.JsonConverterAttribute"/>
+            /// is applied to the enumeration type and a <c>{TypeName}JsonConverter</c> class is generated
+            /// that serializes and deserializes the type as its <c>Key</c> string using
+            /// <see cref="System.Text.Json.JsonSerializer"/>.
+            /// </summary>
+            public bool GenerateJsonConverter { get; init; }
             public EnumerationAttribute(params string[] values) => (Values, MemberCasing) = (values, Casing.PascalCase);
             public EnumerationAttribute(Casing casing, params string[] values) => (Values, MemberCasing) = (values, casing);
         }
@@ -132,7 +139,10 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
             parent = parent.ContainingType;
         }
 
-        return new EnumerationModel(ns, type.Name, entries, isRecord, accessibility, parentTypes.ToImmutable());
+        var generateJsonConverter = attr.NamedArguments
+            .Any(a => a.Key == "GenerateJsonConverter" && a.Value.Value is true);
+
+        return new EnumerationModel(ns, type.Name, entries, isRecord, accessibility, parentTypes.ToImmutable(), generateJsonConverter);
     }
 
     /// <summary>
@@ -185,6 +195,12 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
         sb.AppendLine("using System;");
         sb.AppendLine("using System.Collections.Frozen;");
         sb.AppendLine("using System.Diagnostics.CodeAnalysis;");
+        if (model.GenerateJsonConverter)
+        {
+            sb.AppendLine("using System.Text.Json;");
+            sb.AppendLine("using System.Text.Json.Serialization;");
+        }
+
         sb.AppendLine();
 
         if (model.Namespace is not null)
@@ -207,6 +223,11 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
         }
 
         var interfaces = string.Join(", ", interfaceImplementations);
+
+        if (model.GenerateJsonConverter)
+        {
+            sb.AppendLine($"[JsonConverter(typeof({typeName}JsonConverter))]");
+        }
 
         sb.AppendLine($"{model.Accessibility} sealed partial {typeKind} {typeName} : {interfaces}");
         sb.AppendLine("{");
@@ -376,6 +397,32 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
         sb.AppendLine("    }");
         sb.AppendLine("}");
 
+        if (model.GenerateJsonConverter)
+        {
+            var converterName = $"{typeName}JsonConverter";
+            sb.AppendLine();
+            sb.AppendLine($"/// <summary>A <see cref=\"JsonConverter{{T}}\"/> for <see cref=\"{typeName}\"/> that reads and writes the <c>Key</c> string.</summary>");
+            sb.AppendLine($"{model.Accessibility} sealed class {converterName} : JsonConverter<{typeName}>");
+            sb.AppendLine("{");
+            sb.AppendLine("    /// <inheritdoc />");
+            sb.AppendLine($"    public override {typeName} Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)");
+            sb.AppendLine("    {");
+            sb.AppendLine("        if (reader.TokenType != JsonTokenType.String)");
+            sb.AppendLine($"            throw new JsonException($\"Expected a JSON string for {typeName}, got {{reader.TokenType}}.\");");
+            sb.AppendLine("        var key = reader.GetString();");
+            sb.AppendLine("        if (key is null)");
+            sb.AppendLine($"            throw new JsonException(\"Expected a non-null string value for {typeName}.\");");
+            sb.AppendLine($"        if (!{typeName}.TryCreate(key, out var result))");
+            sb.AppendLine($"            throw new JsonException($\"\\\"{{key}}\\\" is not a valid {typeName} value.\");");
+            sb.AppendLine("        return result;");
+            sb.AppendLine("    }");
+            sb.AppendLine();
+            sb.AppendLine("    /// <inheritdoc />");
+            sb.AppendLine($"    public override void Write(Utf8JsonWriter writer, {typeName} value, JsonSerializerOptions options)");
+            sb.AppendLine("        => writer.WriteStringValue(value.Key);");
+            sb.AppendLine("}");
+        }
+
         foreach (var _ in model.ParentTypes)
         {
             sb.AppendLine("}");
@@ -391,7 +438,8 @@ internal sealed record EnumerationModel(
     ImmutableArray<EnumerationEntry> Entries,
     bool IsRecord,
     string Accessibility,
-    ImmutableArray<ParentType> ParentTypes);
+    ImmutableArray<ParentType> ParentTypes,
+    bool GenerateJsonConverter);
 
 internal sealed record ParentType(string Name, string Kind, string Accessibility);
 

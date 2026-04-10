@@ -14,5 +14,5 @@ r.Match(
     onFile: () => Console.WriteLine("File selected")
 );
 
-[Enumeration("SqlServer", "Sqlite", "File")]
+[Enumeration("SqlServer", "Sqlite", "File", GenerateJsonConverter = true)]
 public sealed partial record DatabaseType;

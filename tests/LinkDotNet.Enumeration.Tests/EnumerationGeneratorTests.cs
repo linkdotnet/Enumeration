@@ -1,4 +1,6 @@
 ﻿using System.Collections.Immutable;
+using System.IO;
+using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Shouldly;
@@ -559,6 +561,194 @@ public sealed class EnumerationGeneratorTests
         text.ShouldContain("private protected sealed partial record MyEnum");
     }
 
+    [Fact]
+    public void EmitsGenerateJsonConverterPropertyInAttributeSource()
+    {
+        var result = RunGenerator(string.Empty);
+
+        var attributeFile = result.GeneratedTrees.SingleOrDefault(t => t.FilePath.EndsWith("EnumerationAttribute.g.cs"));
+        attributeFile.ShouldNotBeNull();
+
+        var text = attributeFile.GetText(TestContext.Current.CancellationToken).ToString();
+        text.ShouldContain("public bool GenerateJsonConverter { get; init; }");
+    }
+
+    [Fact]
+    public void DoesNotGenerateJsonConverter_WhenNotEnabled()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("Red", "Green")]
+            public sealed partial record Color;
+            """;
+
+        var text = GetGeneratedText(source, "Color");
+
+        text.ShouldNotContain("JsonConverter");
+        text.ShouldNotContain("System.Text.Json");
+    }
+
+    [Fact]
+    public void GeneratesJsonConverterAttribute_WhenEnabled()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("Red", "Green", "Blue", GenerateJsonConverter = true)]
+            public sealed partial record Color;
+            """;
+
+        var text = GetGeneratedText(source, "Color");
+
+        text.ShouldContain("[JsonConverter(typeof(ColorJsonConverter))]");
+    }
+
+    [Fact]
+    public void GeneratesJsonConverterClass_WhenEnabled()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("Red", "Green", GenerateJsonConverter = true)]
+            public sealed partial record Color;
+            """;
+
+        var text = GetGeneratedText(source, "Color");
+
+        text.ShouldContain("using System.Text.Json;");
+        text.ShouldContain("using System.Text.Json.Serialization;");
+        text.ShouldContain("public sealed class ColorJsonConverter : JsonConverter<Color>");
+        text.ShouldContain("public override Color Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)");
+        text.ShouldContain("if (reader.TokenType != JsonTokenType.String)");
+        text.ShouldContain("throw new JsonException(");
+        text.ShouldContain("Color.TryCreate(key, out var result)");
+        text.ShouldContain("public override void Write(Utf8JsonWriter writer, Color value, JsonSerializerOptions options)");
+        text.ShouldContain("writer.WriteStringValue(value.Key);");
+    }
+
+    [Fact]
+    public void JsonConverter_CompilesWithoutErrors()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("Red", "Green", "Blue", GenerateJsonConverter = true)]
+            public sealed partial record Color;
+            """;
+
+        var generatorResult = RunGenerator(source);
+        var allTrees = generatorResult.GeneratedTrees
+            .Append(CSharpSyntaxTree.ParseText(source, cancellationToken: TestContext.Current.CancellationToken))
+            .ToArray();
+
+        var references = AppDomain.CurrentDomain.GetAssemblies()
+            .Where(static a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
+            .Select(static a => MetadataReference.CreateFromFile(a.Location))
+            .ToArray();
+
+        var fullCompilation = CSharpCompilation.Create(
+            "JsonConverterTestAssembly",
+            allTrees,
+            references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var errors = fullCompilation.GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToImmutableArray();
+
+        errors.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void JsonConverter_Integration_SerializesAndDeserializesCorrectly()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("Red", "Green", "Blue", GenerateJsonConverter = true)]
+            public sealed partial record Color;
+            """;
+
+        var testHelperSource = """
+            using System.Text.Json;
+            public static class TestHelper
+            {
+                public static string Serialize(Color value) => JsonSerializer.Serialize(value);
+                public static Color? Deserialize(string json) => JsonSerializer.Deserialize<Color>(json);
+            }
+            """;
+
+        var assembly = BuildAndLoad(source, testHelperSource);
+        var colorType = assembly.GetType("Color")!;
+        var testHelper = assembly.GetType("TestHelper")!;
+
+        var redField = colorType.GetField("Red")!.GetValue(null)!;
+        var greenField = colorType.GetField("Green")!.GetValue(null)!;
+
+        var serializeMethod = testHelper.GetMethod("Serialize")!;
+        var deserializeMethod = testHelper.GetMethod("Deserialize")!;
+
+        // Serialize: Color.Red => exactly "\"Red\""
+        var serialized = (string)serializeMethod.Invoke(null, [redField])!;
+        serialized.ShouldBe("\"Red\"");
+
+        // Deserialize: "\"Green\"" => Color.Green (same instance / equal)
+        var deserialized = deserializeMethod.Invoke(null, ["\"Green\""])!;
+        deserialized.ShouldBe(greenField);
+    }
+
+    [Fact]
+    public void JsonConverter_Integration_ThrowsJsonException_ForUnknownKey()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("Red", "Green", GenerateJsonConverter = true)]
+            public sealed partial record Color;
+            """;
+
+        var testHelperSource = """
+            using System.Text.Json;
+            public static class TestHelper
+            {
+                public static Color? Deserialize(string json) => JsonSerializer.Deserialize<Color>(json);
+            }
+            """;
+
+        var assembly = BuildAndLoad(source, testHelperSource);
+        var deserializeMethod = assembly.GetType("TestHelper")!.GetMethod("Deserialize")!;
+
+        var ex = Should.Throw<TargetInvocationException>(() => deserializeMethod.Invoke(null, ["\"Purple\""]));
+        ex.InnerException.ShouldBeOfType<System.Text.Json.JsonException>();
+    }
+
+    [Fact]
+    public void JsonConverter_Integration_ThrowsJsonException_ForNonStringToken()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("Red", "Green", GenerateJsonConverter = true)]
+            public sealed partial record Color;
+            """;
+
+        var testHelperSource = """
+            using System.Text.Json;
+            public static class TestHelper
+            {
+                public static Color? Deserialize(string json) => JsonSerializer.Deserialize<Color>(json);
+            }
+            """;
+
+        var assembly = BuildAndLoad(source, testHelperSource);
+        var deserializeMethod = assembly.GetType("TestHelper")!.GetMethod("Deserialize")!;
+
+        // Number token instead of string
+        var ex = Should.Throw<TargetInvocationException>(() => deserializeMethod.Invoke(null, ["42"]));
+        ex.InnerException.ShouldBeOfType<System.Text.Json.JsonException>();
+    }
+
     private static string GetGeneratedText(string source, string typeName)
     {
         var result = RunGenerator(source);
@@ -581,5 +771,35 @@ public sealed class EnumerationGeneratorTests
             .RunGenerators(compilation);
 
         return driver.GetRunResult();
+    }
+
+    private static Assembly BuildAndLoad(string source, params string[] additionalSources)
+    {
+        var generatorResult = RunGenerator(source);
+        var allTrees = generatorResult.GeneratedTrees
+            .Append(CSharpSyntaxTree.ParseText(source, cancellationToken: TestContext.Current.CancellationToken))
+            .Concat(additionalSources.Select(s =>
+                CSharpSyntaxTree.ParseText(s, cancellationToken: TestContext.Current.CancellationToken)))
+            .ToArray();
+
+        var references = AppDomain.CurrentDomain.GetAssemblies()
+            .Where(static a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
+            .Select(static a => MetadataReference.CreateFromFile(a.Location))
+            .ToArray();
+
+        var compilation = CSharpCompilation.Create(
+            "IntegrationTestAssembly_" + Guid.NewGuid().ToString("N"),
+            allTrees,
+            references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        using var ms = new MemoryStream();
+        var emitResult = compilation.Emit(ms, cancellationToken: TestContext.Current.CancellationToken);
+        emitResult.Success.ShouldBeTrue(
+            string.Join("\n", emitResult.Diagnostics
+                .Where(d => d.Severity == DiagnosticSeverity.Error)
+                .Select(d => d.ToString())));
+
+        return Assembly.Load(ms.ToArray());
     }
 }

@@ -52,6 +52,8 @@ var colorCode = color.Match(
 );
 ```
 
+## More features!
+
 ### Controlling field names
 
 The `Enumeration` attribute accepts an optional first argument of type `Casing` to control how the static member names are derived from the string values. By default, the library uses `PascalCase` to convert string values into member names. If you want to preserve the original casing of the string values, you can set the `Casing` to `Preserve`.
@@ -123,6 +125,17 @@ var areEqual = Color.Red.Equals(Color.Create("Red")); // Value equality
 ### Getting all values
 
 Calling `All` will return a collection of all possible values. This is implemented using a `FrozenSet` to ensure immutability and thread-safety.
+
+## `JsonConverter` Generation
+
+The library allows via the `GenerateJsonConverter` property on the `Enumeration` attribute to generate a `JsonConverter` for the enumeration type. This converter will handle serialization and deserialization of the enumeration values as their string keys.
+
+```csharp
+[Enumeration("Red", "Green", "Blue", GenerateJsonConverter = true)]
+public sealed partial record Color;
+```
+
+This will generate a `JsonConverter` that can be used with `System.Text.Json` to serialize and deserialize `Color` instances as their string keys. The generated converter is called `{TypeName}JsonConverter`.
 
 ### Limitations
 

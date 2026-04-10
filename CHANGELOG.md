@@ -6,6 +6,9 @@ All notable changes to **Enumeration** will be documented in this file. The proj
 
 ## [Unreleased]
 
+### Added
+- Option to generate JsonConverter via `GenerateJsonConverter` property on the attribute.
+
 ## [1.3.1] - 2026-04-06
 
 \### Fixed
