@@ -8,7 +8,7 @@ All notable changes to **Enumeration** will be documented in this file. The proj
 
 ## [1.4.0] - 2026-04-10
 
-\### Added
+### Added
 
 - Option to generate JsonConverter via `GenerateJsonConverter` property on the attribute.
 - `ISpanFormattable` added
@@ -16,7 +16,7 @@ All notable changes to **Enumeration** will be documented in this file. The proj
 
 ## [1.3.1] - 2026-04-06
 
-\### Fixed
+### Fixed
 
 - Accidental change in csproj so it doesn't properly build
 
