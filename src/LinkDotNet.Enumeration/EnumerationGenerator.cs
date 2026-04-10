@@ -194,6 +194,7 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
         sb.AppendLine();
         sb.AppendLine("using System;");
         sb.AppendLine("using System.Collections.Frozen;");
+        sb.AppendLine("using System.Diagnostics;");
         sb.AppendLine("using System.Diagnostics.CodeAnalysis;");
         if (model.GenerateJsonConverter)
         {
@@ -216,7 +217,7 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
         }
 
         var typeKind = model.IsRecord ? "record" : "class";
-        var interfaceImplementations = new List<string> { $"IParsable<{typeName}>", $"ISpanParsable<{typeName}>" };
+        var interfaceImplementations = new List<string> { $"IParsable<{typeName}>", $"ISpanParsable<{typeName}>", "ISpanFormattable" };
         if (!model.IsRecord)
         {
             interfaceImplementations.Add($"IEquatable<{typeName}>");
@@ -229,6 +230,7 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
             sb.AppendLine($"[JsonConverter(typeof({typeName}JsonConverter))]");
         }
 
+        sb.AppendLine("[DebuggerDisplay(\"{Key}\")]");
         sb.AppendLine($"{model.Accessibility} sealed partial {typeKind} {typeName} : {interfaces}");
         sb.AppendLine("{");
 
@@ -293,6 +295,22 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
         sb.AppendLine("    }");
         sb.AppendLine();
 
+        sb.AppendLine($"    /// <summary>Tries to create the <see cref=\"{typeName}\"/> instance matching <paramref name=\"key\"/> without allocating a string.</summary>");
+        sb.AppendLine("    /// <param name=\"key\">The key span to look up.</param>");
+        sb.AppendLine($"    /// <param name=\"value\">When this method returns <see langword=\"true\"/>, contains the matching <see cref=\"{typeName}\"/> instance; otherwise <see langword=\"null\"/>.</param>");
+        sb.AppendLine("    /// <returns><see langword=\"true\"/> if a matching instance was found; otherwise <see langword=\"false\"/>.</returns>");
+        sb.AppendLine($"    public static bool TryCreate(ReadOnlySpan<char> key, [NotNullWhen(true)] out {typeName}? value)");
+        sb.AppendLine("    {");
+        foreach (var entry in model.Entries)
+        {
+            sb.AppendLine($"        if (MemoryExtensions.Equals(key, \"{entry.Key}\".AsSpan(), StringComparison.Ordinal))");
+            sb.AppendLine($"        {{ value = {entry.MemberName}; return true; }}");
+        }
+        sb.AppendLine("        value = null;");
+        sb.AppendLine("        return false;");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+
         sb.AppendLine("    /// <inheritdoc />");
         sb.AppendLine($"    public static {typeName} Parse(string s, IFormatProvider? provider) => Create(s);");
         sb.AppendLine();
@@ -303,7 +321,7 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
         sb.AppendLine($"    public static {typeName} Parse(ReadOnlySpan<char> s, IFormatProvider? provider) => Create(s.ToString());");
         sb.AppendLine();
         sb.AppendLine("    /// <inheritdoc />");
-        sb.AppendLine($"    public static bool TryParse(ReadOnlySpan<char> s, IFormatProvider? provider, [NotNullWhen(true)] out {typeName}? result) => TryCreate(s.ToString(), out result);");
+        sb.AppendLine($"    public static bool TryParse(ReadOnlySpan<char> s, IFormatProvider? provider, [NotNullWhen(true)] out {typeName}? result) => TryCreate(s, out result);");
         sb.AppendLine();
 
         if (!model.IsRecord)
@@ -337,6 +355,23 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
         sb.AppendLine("    /// <summary>Returns the key of this enumeration value.</summary>");
         sb.AppendLine("    /// <returns>The <see cref=\"Key\"/> string.</returns>");
         sb.AppendLine("    public override string ToString() => Key;");
+        sb.AppendLine();
+
+        sb.AppendLine("    /// <inheritdoc />");
+        sb.AppendLine("    public bool TryFormat(Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        if (Key.AsSpan().TryCopyTo(destination))");
+        sb.AppendLine("        {");
+        sb.AppendLine("            charsWritten = Key.Length;");
+        sb.AppendLine("            return true;");
+        sb.AppendLine("        }");
+        sb.AppendLine("        charsWritten = 0;");
+        sb.AppendLine("        return false;");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+
+        sb.AppendLine("    /// <inheritdoc />");
+        sb.AppendLine("    public string ToString(string? format, IFormatProvider? provider) => Key;");
         sb.AppendLine();
 
         var valueParams = string.Join(", ", model.Entries.Select(static e => $"T on{e.MemberName}"));

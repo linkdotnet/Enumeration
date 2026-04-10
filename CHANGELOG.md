@@ -8,6 +8,8 @@ All notable changes to **Enumeration** will be documented in this file. The proj
 
 ### Added
 - Option to generate JsonConverter via `GenerateJsonConverter` property on the attribute.
+- `ISpanFormattable` added
+- `DebuggerDisplay` attribute added to generated types for better debugging experience.
 
 ## [1.3.1] - 2026-04-06
 

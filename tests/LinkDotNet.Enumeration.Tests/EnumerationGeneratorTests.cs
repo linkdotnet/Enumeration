@@ -464,7 +464,7 @@ public sealed class EnumerationGeneratorTests
 
         var text = GetGeneratedText(source, "MyClass");
 
-        text.ShouldContain("public sealed partial class MyClass : IParsable<MyClass>, ISpanParsable<MyClass>, IEquatable<MyClass>");
+        text.ShouldContain("public sealed partial class MyClass : IParsable<MyClass>, ISpanParsable<MyClass>, ISpanFormattable, IEquatable<MyClass>");
         text.ShouldContain("public bool Equals(MyClass? other) => other is not null && Key.Equals(other.Key, StringComparison.Ordinal);");
         text.ShouldContain("public override bool Equals(object? obj) => obj is MyClass other && Equals(other);");
         text.ShouldContain("public override int GetHashCode() => Key.GetHashCode();");
@@ -749,6 +749,111 @@ public sealed class EnumerationGeneratorTests
         ex.InnerException.ShouldBeOfType<System.Text.Json.JsonException>();
     }
 
+    [Fact]
+    public void GeneratesDebuggerDisplayAttribute()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("Red", "Green")]
+            public sealed partial record Color;
+            """;
+
+        var text = GetGeneratedText(source, "Color");
+
+        text.ShouldContain("[DebuggerDisplay(\"{Key}\")]");
+        text.ShouldContain("using System.Diagnostics;");
+    }
+
+    [Fact]
+    public void GeneratesSpanTryCreate()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("Red", "Green", "Blue")]
+            public sealed partial record Color;
+            """;
+
+        var text = GetGeneratedText(source, "Color");
+
+        text.ShouldContain("public static bool TryCreate(ReadOnlySpan<char> key, [NotNullWhen(true)] out Color? value)");
+        text.ShouldContain("MemoryExtensions.Equals(key, \"Red\".AsSpan(), StringComparison.Ordinal)");
+        text.ShouldContain("MemoryExtensions.Equals(key, \"Green\".AsSpan(), StringComparison.Ordinal)");
+        text.ShouldContain("MemoryExtensions.Equals(key, \"Blue\".AsSpan(), StringComparison.Ordinal)");
+    }
+
+    [Fact]
+    public void GeneratesISpanFormattableInterface()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("Red", "Green")]
+            public sealed partial record Color;
+            """;
+
+        var text = GetGeneratedText(source, "Color");
+
+        text.ShouldContain("ISpanFormattable");
+        text.ShouldContain("public bool TryFormat(Span<char> destination, out int charsWritten, ReadOnlySpan<char> format, IFormatProvider? provider)");
+        text.ShouldContain("Key.AsSpan().TryCopyTo(destination)");
+        text.ShouldContain("charsWritten = Key.Length;");
+        text.ShouldContain("public string ToString(string? format, IFormatProvider? provider) => Key;");
+    }
+
+    [Fact]
+    public void SpanFeatures_Integration_TryCreateWithSpan()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("Red", "Green", "Blue")]
+            public sealed partial record Color;
+            """;
+
+        var testHelperSource = """
+            using System;
+            public static class TestHelper
+            {
+                public static object? TryCreateFromSpan(string key)
+                {
+                    Color.TryCreate(key.AsSpan(), out var result);
+                    return result;
+                }
+                public static bool TryCreateUnknown()
+                {
+                    return Color.TryCreate("Purple".AsSpan(), out _);
+                }
+                public static string TryFormatColor(object colorObj)
+                {
+                    var color = (Color)colorObj;
+                    Span<char> buf = stackalloc char[32];
+                    color.TryFormat(buf, out var written, default, null);
+                    return new string(buf.Slice(0, written));
+                }
+            }
+            """;
+
+        var assembly = BuildAndLoad(source, testHelperSource);
+        var testHelper = assembly.GetType("TestHelper")!;
+        var colorType = assembly.GetType("Color")!;
+
+        var redField = colorType.GetField("Red")!.GetValue(null)!;
+
+        // TryCreate(ReadOnlySpan<char>) finds known value
+        var result = testHelper.GetMethod("TryCreateFromSpan")!.Invoke(null, ["Red"])!;
+        result.ShouldBe(redField);
+
+        // TryCreate(ReadOnlySpan<char>) returns false for unknown
+        var found = (bool)testHelper.GetMethod("TryCreateUnknown")!.Invoke(null, [])!;
+        found.ShouldBeFalse();
+
+        // TryFormat writes the key into a span
+        var formatted = (string)testHelper.GetMethod("TryFormatColor")!.Invoke(null, [redField])!;
+        formatted.ShouldBe("Red");
+    }
+
     private static string GetGeneratedText(string source, string typeName)
     {
         var result = RunGenerator(source);
@@ -782,8 +887,18 @@ public sealed class EnumerationGeneratorTests
                 CSharpSyntaxTree.ParseText(s, cancellationToken: TestContext.Current.CancellationToken)))
             .ToArray();
 
+        // Explicitly include assemblies the generated code may reference so the result is
+        // independent of which assemblies other tests happen to have loaded first.
+        var explicitAssemblies = new[]
+        {
+            typeof(System.Text.Json.JsonSerializer).Assembly,
+            typeof(System.Text.Json.Serialization.JsonConverter<>).Assembly,
+        };
+
         var references = AppDomain.CurrentDomain.GetAssemblies()
+            .Concat(explicitAssemblies)
             .Where(static a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
+            .Distinct()
             .Select(static a => MetadataReference.CreateFromFile(a.Location))
             .ToArray();
 
