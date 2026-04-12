@@ -155,8 +155,9 @@ public sealed class EnumerationGeneratorTests
         var text = GetGeneratedText(source, "Provider");
 
         text.ShouldContain("public T Match<T>(T onSqlServer, T onSqlite)");
-        text.ShouldContain("if (Key == SqlServer.Key) return onSqlServer;");
-        text.ShouldContain("if (Key == Sqlite.Key) return onSqlite;");
+        text.ShouldContain("return Key switch");
+        text.ShouldContain("\"SqlServer\" => onSqlServer,");
+        text.ShouldContain("\"Sqlite\" => onSqlite,");
     }
 
     [Fact]
@@ -172,9 +173,10 @@ public sealed class EnumerationGeneratorTests
         var text = GetGeneratedText(source, "Provider");
 
         text.ShouldContain("public T Match<T>(Func<T> onSqlServer, Func<T> onSqlite, Func<T> onMongoDB)");
-        text.ShouldContain("if (Key == SqlServer.Key) return onSqlServer();");
-        text.ShouldContain("if (Key == Sqlite.Key) return onSqlite();");
-        text.ShouldContain("if (Key == MongoDB.Key) return onMongoDB();");
+        text.ShouldContain("return Key switch");
+        text.ShouldContain("\"SqlServer\" => onSqlServer(),");
+        text.ShouldContain("\"Sqlite\" => onSqlite(),");
+        text.ShouldContain("\"MongoDB\" => onMongoDB(),");
     }
 
     [Fact]
@@ -190,7 +192,8 @@ public sealed class EnumerationGeneratorTests
         var text = GetGeneratedText(source, "Provider");
 
         text.ShouldContain("public void Match(Action onSqlServer, Action onSqlite, Action onMongoDB)");
-        text.ShouldContain("if (Key == SqlServer.Key) { onSqlServer(); return; }");
+        text.ShouldContain("switch (Key)");
+        text.ShouldContain("case \"SqlServer\": onSqlServer(); return;");
     }
 
     [Fact]
@@ -778,9 +781,10 @@ public sealed class EnumerationGeneratorTests
         var text = GetGeneratedText(source, "Color");
 
         text.ShouldContain("public static bool TryCreate(ReadOnlySpan<char> key, [NotNullWhen(true)] out Color? value)");
-        text.ShouldContain("MemoryExtensions.Equals(key, \"Red\".AsSpan(), StringComparison.Ordinal)");
-        text.ShouldContain("MemoryExtensions.Equals(key, \"Green\".AsSpan(), StringComparison.Ordinal)");
-        text.ShouldContain("MemoryExtensions.Equals(key, \"Blue\".AsSpan(), StringComparison.Ordinal)");
+        text.ShouldContain("value = key switch");
+        text.ShouldContain("\"Red\" => Red,");
+        text.ShouldContain("\"Green\" => Green,");
+        text.ShouldContain("\"Blue\" => Blue,");
     }
 
     [Fact]
@@ -852,6 +856,106 @@ public sealed class EnumerationGeneratorTests
         // TryFormat writes the key into a span
         var formatted = (string)testHelper.GetMethod("TryFormatColor")!.Invoke(null, [redField])!;
         formatted.ShouldBe("Red");
+    }
+
+    [Fact]
+    public void GeneratesIsDefinedMethods()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("A", "B")]
+            public sealed partial record Foo;
+            """;
+
+        var text = GetGeneratedText(source, "Foo");
+
+        text.ShouldContain("public static bool IsDefined(string? key) => TryCreate(key, out _);");
+        text.ShouldContain("public static bool IsDefined(ReadOnlySpan<char> key) => TryCreate(key, out _);");
+    }
+
+    [Fact]
+    public void IsDefined_Integration_ReturnsCorrectResults()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("Red", "Green")]
+            public sealed partial record Color;
+            """;
+
+        var testHelperSource = """
+            using System;
+            public static class TestHelper
+            {
+                public static bool IsDefinedString(string key) => Color.IsDefined(key);
+                public static bool IsDefinedSpan(string key) => Color.IsDefined(key.AsSpan());
+            }
+            """;
+
+        var assembly = BuildAndLoad(source, testHelperSource);
+        var testHelper = assembly.GetType("TestHelper")!;
+
+        var isDefinedString = testHelper.GetMethod("IsDefinedString")!;
+        var isDefinedSpan = testHelper.GetMethod("IsDefinedSpan")!;
+
+        ((bool)isDefinedString.Invoke(null, ["Red"])!).ShouldBeTrue();
+        ((bool)isDefinedString.Invoke(null, ["Blue"])!).ShouldBeFalse();
+        ((bool)isDefinedSpan.Invoke(null, ["Green"])!).ShouldBeTrue();
+        ((bool)isDefinedSpan.Invoke(null, ["Yellow"])!).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void GeneratesMatchWithState()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("A", "B")]
+            public sealed partial record Foo;
+            """;
+
+        var text = GetGeneratedText(source, "Foo");
+
+        text.ShouldContain("public T Match<T, TState>(TState state, Func<TState, T> onA, Func<TState, T> onB)");
+        text.ShouldContain("public void Match<TState>(TState state, Action<TState> onA, Action<TState> onB)");
+    }
+
+    [Fact]
+    public void MatchWithState_Integration_PassesStateAndReturnsValue()
+    {
+        var source = """
+            using LinkDotNet.Enumeration;
+
+            [Enumeration("A", "B")]
+            public sealed partial record Foo;
+            """;
+
+        var testHelperSource = """
+            using System;
+            public static class TestHelper
+            {
+                public static string MatchWithState(object fooObj, string state)
+                {
+                    var foo = (Foo)fooObj;
+                    return foo.Match(state, 
+                        s => "Got A with " + s,
+                        s => "Got B with " + s);
+                }
+            }
+            """;
+
+        var assembly = BuildAndLoad(source, testHelperSource);
+        var testHelper = assembly.GetType("TestHelper")!;
+        var fooType = assembly.GetType("Foo")!;
+
+        var aField = fooType.GetField("A")!.GetValue(null)!;
+        var bField = fooType.GetField("B")!.GetValue(null)!;
+
+        var matchMethod = testHelper.GetMethod("MatchWithState")!;
+
+        ((string)matchMethod.Invoke(null, [aField, "hello"])!).ShouldBe("Got A with hello");
+        ((string)matchMethod.Invoke(null, [bField, "world"])!).ShouldBe("Got B with world");
     }
 
     private static string GetGeneratedText(string source, string typeName)

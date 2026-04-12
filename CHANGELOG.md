@@ -6,6 +6,15 @@ All notable changes to **Enumeration** will be documented in this file. The proj
 
 ## [Unreleased]
 
+### Added
+
+- `IsDefined(string)` and `IsDefined(ReadOnlySpan<char>)` static methods to check if a key is a valid enumeration value.
+- `Match` and `Match<T>` overloads with `TState` to avoid closure allocations in performance-critical paths.
+
+### Changed
+
+- Updated `TryCreate(ReadOnlySpan<char>)` and `Match` methods to use `switch` statements/expressions for better performance.
+
 ## [1.4.0] - 2026-04-10
 
 ### Added

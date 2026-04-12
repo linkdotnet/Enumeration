@@ -301,14 +301,27 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
         sb.AppendLine("    /// <returns><see langword=\"true\"/> if a matching instance was found; otherwise <see langword=\"false\"/>.</returns>");
         sb.AppendLine($"    public static bool TryCreate(ReadOnlySpan<char> key, [NotNullWhen(true)] out {typeName}? value)");
         sb.AppendLine("    {");
+        sb.AppendLine("        value = key switch");
+        sb.AppendLine("        {");
         foreach (var entry in model.Entries)
         {
-            sb.AppendLine($"        if (MemoryExtensions.Equals(key, \"{entry.Key}\".AsSpan(), StringComparison.Ordinal))");
-            sb.AppendLine($"        {{ value = {entry.MemberName}; return true; }}");
+            sb.AppendLine($"            \"{entry.Key}\" => {entry.MemberName},");
         }
-        sb.AppendLine("        value = null;");
-        sb.AppendLine("        return false;");
+        sb.AppendLine("            _ => null");
+        sb.AppendLine("        };");
+        sb.AppendLine("        return value is not null;");
         sb.AppendLine("    }");
+        sb.AppendLine();
+
+        sb.AppendLine("    /// <summary>Returns <see langword=\"true\"/> if <paramref name=\"key\"/> is a valid enumeration value.</summary>");
+        sb.AppendLine("    /// <param name=\"key\">The key to check.</param>");
+        sb.AppendLine("    /// <returns><see langword=\"true\"/> if the key is defined; otherwise <see langword=\"false\"/>.</returns>");
+        sb.AppendLine($"    public static bool IsDefined(string? key) => TryCreate(key, out _);");
+        sb.AppendLine();
+        sb.AppendLine("    /// <summary>Returns <see langword=\"true\"/> if <paramref name=\"key\"/> is a valid enumeration value without allocating a string.</summary>");
+        sb.AppendLine("    /// <param name=\"key\">The key span to check.</param>");
+        sb.AppendLine("    /// <returns><see langword=\"true\"/> if the key is defined; otherwise <see langword=\"false\"/>.</returns>");
+        sb.AppendLine($"    public static bool IsDefined(ReadOnlySpan<char> key) => TryCreate(key, out _);");
         sb.AppendLine();
 
         sb.AppendLine("    /// <inheritdoc />");
@@ -385,12 +398,14 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
         sb.AppendLine("    /// <exception cref=\"InvalidOperationException\">Thrown when no case matches.</exception>");
         sb.AppendLine($"    public T Match<T>({valueParams})");
         sb.AppendLine("    {");
+        sb.AppendLine("        return Key switch");
+        sb.AppendLine("        {");
         foreach (var entry in model.Entries)
         {
-            sb.AppendLine($"        if (Key == {entry.MemberName}.Key) return on{entry.MemberName};");
+            sb.AppendLine($"            \"{entry.Key}\" => on{entry.MemberName},");
         }
-
-        sb.AppendLine("        throw new InvalidOperationException($\"Unhandled enumeration value: {Key}\");");
+        sb.AppendLine("            _ => throw new InvalidOperationException($\"Unhandled enumeration value: {Key}\")");
+        sb.AppendLine("        };");
         sb.AppendLine("    }");
         sb.AppendLine();
 
@@ -405,12 +420,38 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
         sb.AppendLine("    /// <exception cref=\"InvalidOperationException\">Thrown when no case matches.</exception>");
         sb.AppendLine($"    public T Match<T>({funcParams})");
         sb.AppendLine("    {");
+        sb.AppendLine("        return Key switch");
+        sb.AppendLine("        {");
         foreach (var entry in model.Entries)
         {
-            sb.AppendLine($"        if (Key == {entry.MemberName}.Key) return on{entry.MemberName}();");
+            sb.AppendLine($"            \"{entry.Key}\" => on{entry.MemberName}(),");
         }
+        sb.AppendLine("            _ => throw new InvalidOperationException($\"Unhandled enumeration value: {Key}\")");
+        sb.AppendLine("        };");
+        sb.AppendLine("    }");
+        sb.AppendLine();
 
-        sb.AppendLine("        throw new InvalidOperationException($\"Unhandled enumeration value: {Key}\");");
+        var stateFuncParams = string.Join(", ", model.Entries.Select(static e => $"Func<TState, T> on{e.MemberName}"));
+        sb.AppendLine("    /// <summary>Invokes the function corresponding to the current value, passing <paramref name=\"state\"/>, and returns its result.</summary>");
+        sb.AppendLine("    /// <param name=\"state\">The state to pass to the function.</param>");
+        foreach (var entry in model.Entries)
+        {
+            sb.AppendLine($"    /// <param name=\"on{entry.MemberName}\">Invoked when the current value is <see cref=\"{entry.MemberName}\"/>.</param>");
+        }
+        sb.AppendLine("    /// <typeparam name=\"T\">The return type.</typeparam>");
+        sb.AppendLine("    /// <typeparam name=\"TState\">The type of the state object.</typeparam>");
+        sb.AppendLine("    /// <returns>The value returned by the matched function.</returns>");
+        sb.AppendLine("    /// <exception cref=\"InvalidOperationException\">Thrown when no case matches.</exception>");
+        sb.AppendLine($"    public T Match<T, TState>(TState state, {stateFuncParams})");
+        sb.AppendLine("    {");
+        sb.AppendLine("        return Key switch");
+        sb.AppendLine("        {");
+        foreach (var entry in model.Entries)
+        {
+            sb.AppendLine($"            \"{entry.Key}\" => on{entry.MemberName}(state),");
+        }
+        sb.AppendLine("            _ => throw new InvalidOperationException($\"Unhandled enumeration value: {Key}\")");
+        sb.AppendLine("        };");
         sb.AppendLine("    }");
         sb.AppendLine();
 
@@ -423,14 +464,39 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
         sb.AppendLine("    /// <exception cref=\"InvalidOperationException\">Thrown when no case matches.</exception>");
         sb.AppendLine($"    public void Match({actionParams})");
         sb.AppendLine("    {");
+        sb.AppendLine("        switch (Key)");
+        sb.AppendLine("        {");
         foreach (var entry in model.Entries)
         {
-            sb.AppendLine($"        if (Key == {entry.MemberName}.Key) {{ on{entry.MemberName}(); return; }}");
+            sb.AppendLine($"            case \"{entry.Key}\": on{entry.MemberName}(); return;");
         }
+        sb.AppendLine("            default: throw new InvalidOperationException($\"Unhandled enumeration value: {Key}\");");
+        sb.AppendLine("        }");
+        sb.AppendLine("    }");
+        sb.AppendLine();
 
-        sb.AppendLine("        throw new InvalidOperationException($\"Unhandled enumeration value: {Key}\");");
+        var stateActionParams = string.Join(", ", model.Entries.Select(static e => $"Action<TState> on{e.MemberName}"));
+        sb.AppendLine("    /// <summary>Invokes the action corresponding to the current value, passing <paramref name=\"state\"/>.</summary>");
+        sb.AppendLine("    /// <param name=\"state\">The state to pass to the action.</param>");
+        foreach (var entry in model.Entries)
+        {
+            sb.AppendLine($"    /// <param name=\"on{entry.MemberName}\">Invoked when the current value is <see cref=\"{entry.MemberName}\"/>.</param>");
+        }
+        sb.AppendLine("    /// <typeparam name=\"TState\">The type of the state object.</typeparam>");
+        sb.AppendLine("    /// <exception cref=\"InvalidOperationException\">Thrown when no case matches.</exception>");
+        sb.AppendLine($"    public void Match<TState>(TState state, {stateActionParams})");
+        sb.AppendLine("    {");
+        sb.AppendLine("        switch (Key)");
+        sb.AppendLine("        {");
+        foreach (var entry in model.Entries)
+        {
+            sb.AppendLine($"            case \"{entry.Key}\": on{entry.MemberName}(state); return;");
+        }
+        sb.AppendLine("            default: throw new InvalidOperationException($\"Unhandled enumeration value: {Key}\");");
+        sb.AppendLine("        }");
         sb.AppendLine("    }");
         sb.AppendLine("}");
+
 
         if (model.GenerateJsonConverter)
         {
