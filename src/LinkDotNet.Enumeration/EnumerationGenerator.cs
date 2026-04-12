@@ -196,6 +196,7 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
         sb.AppendLine("using System.Collections.Frozen;");
         sb.AppendLine("using System.Diagnostics;");
         sb.AppendLine("using System.Diagnostics.CodeAnalysis;");
+        sb.AppendLine("using System.Runtime.CompilerServices;");
         if (model.GenerateJsonConverter)
         {
             sb.AppendLine("using System.Text.Json;");
@@ -316,24 +317,30 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
         sb.AppendLine("    /// <summary>Returns <see langword=\"true\"/> if <paramref name=\"key\"/> is a valid enumeration value.</summary>");
         sb.AppendLine("    /// <param name=\"key\">The key to check.</param>");
         sb.AppendLine("    /// <returns><see langword=\"true\"/> if the key is defined; otherwise <see langword=\"false\"/>.</returns>");
+        sb.AppendLine("    [MethodImpl(MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine($"    public static bool IsDefined(string? key) => TryCreate(key, out _);");
         sb.AppendLine();
         sb.AppendLine("    /// <summary>Returns <see langword=\"true\"/> if <paramref name=\"key\"/> is a valid enumeration value without allocating a string.</summary>");
         sb.AppendLine("    /// <param name=\"key\">The key span to check.</param>");
         sb.AppendLine("    /// <returns><see langword=\"true\"/> if the key is defined; otherwise <see langword=\"false\"/>.</returns>");
+        sb.AppendLine("    [MethodImpl(MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine($"    public static bool IsDefined(ReadOnlySpan<char> key) => TryCreate(key, out _);");
         sb.AppendLine();
 
         sb.AppendLine("    /// <inheritdoc />");
+        sb.AppendLine("    [MethodImpl(MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine($"    public static {typeName} Parse(string s, IFormatProvider? provider) => Create(s);");
         sb.AppendLine();
         sb.AppendLine("    /// <inheritdoc />");
+        sb.AppendLine("    [MethodImpl(MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine($"    public static bool TryParse(string? s, IFormatProvider? provider, [NotNullWhen(true)] out {typeName}? result) => TryCreate(s, out result);");
         sb.AppendLine();
         sb.AppendLine("    /// <inheritdoc />");
+        sb.AppendLine("    [MethodImpl(MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine($"    public static {typeName} Parse(ReadOnlySpan<char> s, IFormatProvider? provider) => Create(s.ToString());");
         sb.AppendLine();
         sb.AppendLine("    /// <inheritdoc />");
+        sb.AppendLine("    [MethodImpl(MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine($"    public static bool TryParse(ReadOnlySpan<char> s, IFormatProvider? provider, [NotNullWhen(true)] out {typeName}? result) => TryCreate(s, out result);");
         sb.AppendLine();
 
@@ -351,22 +358,27 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
         }
 
         sb.AppendLine($"    /// <summary>Returns <see langword=\"true\"/> when <paramref name=\"a\"/>'s key equals <paramref name=\"b\"/> using ordinal string comparison.</summary>");
+        sb.AppendLine("    [MethodImpl(MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine($"    public static bool operator ==({typeName}? a, string? b)");
         sb.AppendLine("        => a is not null && b is not null && a.Key.Equals(b, StringComparison.Ordinal);");
         sb.AppendLine();
         sb.AppendLine($"    /// <summary>Returns <see langword=\"true\"/> when <paramref name=\"a\"/>'s key does not equal <paramref name=\"b\"/>.</summary>");
+        sb.AppendLine("    [MethodImpl(MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine($"    public static bool operator !=({typeName}? a, string? b) => !(a == b);");
         sb.AppendLine();
 
         sb.AppendLine($"    /// <summary>Implicitly converts the <see cref=\"{typeName}\"/> instance to its <see cref=\"Key\"/>.</summary>");
+        sb.AppendLine("    [MethodImpl(MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine($"    public static implicit operator string({typeName} value) => value.Key;");
         sb.AppendLine();
         sb.AppendLine($"    /// <summary>Explicitly converts the <see cref=\"string\"/> to a <see cref=\"{typeName}\"/> instance.</summary>");
+        sb.AppendLine("    [MethodImpl(MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine($"    public static explicit operator {typeName}(string key) => Create(key);");
         sb.AppendLine();
 
         sb.AppendLine("    /// <summary>Returns the key of this enumeration value.</summary>");
         sb.AppendLine("    /// <returns>The <see cref=\"Key\"/> string.</returns>");
+        sb.AppendLine("    [MethodImpl(MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine("    public override string ToString() => Key;");
         sb.AppendLine();
 
@@ -384,6 +396,7 @@ public sealed class EnumerationGenerator : IIncrementalGenerator
         sb.AppendLine();
 
         sb.AppendLine("    /// <inheritdoc />");
+        sb.AppendLine("    [MethodImpl(MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine("    public string ToString(string? format, IFormatProvider? provider) => Key;");
         sb.AppendLine();
 
