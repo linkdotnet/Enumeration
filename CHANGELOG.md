@@ -6,6 +6,8 @@ All notable changes to **Enumeration** will be documented in this file. The proj
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-04-12
+
 ### Added
 
 - `IsDefined(string)` and `IsDefined(ReadOnlySpan<char>)` static methods to check if a key is a valid enumeration value.
@@ -17,7 +19,7 @@ All notable changes to **Enumeration** will be documented in this file. The proj
 
 ## [1.4.0] - 2026-04-10
 
-### Added
+\### Added
 
 - Option to generate JsonConverter via `GenerateJsonConverter` property on the attribute.
 - `ISpanFormattable` added
@@ -25,7 +27,7 @@ All notable changes to **Enumeration** will be documented in this file. The proj
 
 ## [1.3.1] - 2026-04-06
 
-### Fixed
+\### Fixed
 
 - Accidental change in csproj so it doesn't properly build
 
@@ -67,7 +69,8 @@ All notable changes to **Enumeration** will be documented in this file. The proj
 
 - Initial release of `Enumeration` source code generator.
 
-[unreleased]: https://github.com/linkdotnet/Enumeration/compare/1.4.0...HEAD
+[unreleased]: https://github.com/linkdotnet/Enumeration/compare/1.5.0...HEAD
+[1.5.0]: https://github.com/linkdotnet/Enumeration/compare/1.4.0...1.5.0
 [1.4.0]: https://github.com/linkdotnet/Enumeration/compare/1.3.1...1.4.0
 [1.3.1]: https://github.com/linkdotnet/Enumeration/compare/1.3.0...1.3.1
 [1.3.0]: https://github.com/linkdotnet/Enumeration/compare/1.2.0...1.3.0
